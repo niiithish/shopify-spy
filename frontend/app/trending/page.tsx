@@ -61,7 +61,10 @@ export default function TrendingPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Trending" />
+      <PageHeader
+        title="Trending"
+        description="Prioritize apps with strong momentum, recent review volume, and proven demand."
+      />
 
       <AppsToolbar
         value={toolbar}

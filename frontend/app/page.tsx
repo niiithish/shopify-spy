@@ -6,6 +6,7 @@ import {
   IconArrowRight,
   IconFlame,
   IconRocket,
+  IconTargetArrow,
   IconTags,
 } from "@tabler/icons-react"
 import { fetchApps, fetchKeywords, fetchStats } from "@/lib/api"
@@ -21,7 +22,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatKeyword, formatNumber, formatScore } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -41,9 +41,42 @@ function SectionHeader({
     <div className="flex items-center justify-between gap-4">
       <div className="flex items-center gap-2.5">
         {icon}
-        <h2 className="font-heading text-base font-semibold tracking-tight">
-          {title}
-        </h2>
+        <h2 className="font-heading text-base font-semibold">{title}</h2>
+      </div>
+      <Link
+        href={href}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
+      >
+        {linkLabel}
+        <IconArrowRight data-icon="inline-end" />
+      </Link>
+    </div>
+  )
+}
+
+function DashboardSectionHeader({
+  icon,
+  title,
+  description,
+  href,
+  linkLabel = "View all",
+}: {
+  icon: React.ReactNode
+  title: string
+  description: string
+  href: string
+  linkLabel?: string
+}) {
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <div className="mt-0.5 shrink-0">{icon}</div>
+        <div className="min-w-0 space-y-1">
+          <h2 className="font-heading text-base font-semibold">{title}</h2>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            {description}
+          </p>
+        </div>
       </div>
       <Link
         href={href}
@@ -101,6 +134,24 @@ export default function DashboardPage() {
       }),
   })
 
+  const improveTargetsQuery = useQuery({
+    queryKey: queryKeys.apps({
+      mode: "improve_targets",
+      sort: "recent_reviews_30_days",
+      order: "desc",
+      pageSize: 6,
+      clientId: clientId || undefined,
+    }),
+    queryFn: () =>
+      fetchApps({
+        mode: "improve_targets",
+        sort: "recent_reviews_30_days",
+        order: "desc",
+        pageSize: 6,
+        clientId: clientId || undefined,
+      }),
+  })
+
   const keywordsQuery = useQuery({
     queryKey: queryKeys.keywords(),
     queryFn: () => fetchKeywords(),
@@ -113,6 +164,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <PageHeader
           title="Dashboard"
+          description="Find apps with traction, fresh demand, or a weak customer experience you can improve."
           actions={
             <Link href="/opportunities" className={cn(buttonVariants())}>
               <IconRocket data-icon="inline-start" />
@@ -124,9 +176,10 @@ export default function DashboardPage() {
       </div>
 
       <section className="space-y-6">
-        <SectionHeader
+        <DashboardSectionHeader
           icon={<IconFlame className="size-5 text-orange-500" />}
-          title="Trending"
+          title="High traction apps"
+          description="Apps with strong trend scores and recent review activity worth studying for demand patterns."
           href="/trending"
         />
         <AppGrid
@@ -138,9 +191,26 @@ export default function DashboardPage() {
       </section>
 
       <section className="space-y-6">
-        <SectionHeader
-          icon={<IconRocket className="size-5 text-violet-500" />}
-          title="Opportunities"
+        <DashboardSectionHeader
+          icon={<IconTargetArrow className="size-5 text-sky-500" />}
+          title="Improve targets"
+          description="Lower-rated apps that still get recent reviews, which can mean demand is alive but users are underserved."
+          href="/opportunities"
+          linkLabel="Explore"
+        />
+        <AppGrid
+          apps={improveTargetsQuery.data?.apps}
+          isLoading={improveTargetsQuery.isLoading}
+          emptyTitle="No improve targets"
+          emptyMessage="Try the Improve targets quick filter in app search."
+        />
+      </section>
+
+      <section className="space-y-6">
+        <DashboardSectionHeader
+          icon={<IconRocket className="size-5 text-emerald-500" />}
+          title="Early pull"
+          description="Smaller apps with good ratings and fresh reviews, useful for finding niches before they look obvious."
           href="/opportunities"
         />
         <AppGrid
@@ -154,7 +224,7 @@ export default function DashboardPage() {
       <section className="space-y-6">
         <SectionHeader
           icon={<IconTags className="size-5 text-sky-500" />}
-          title="Keywords"
+          title="Keyword markets"
           href="/keywords"
         />
 
@@ -190,11 +260,31 @@ export default function DashboardPage() {
                     <CardTitle className="transition-colors group-hover:text-primary">
                       {formatKeyword(kw.keyword).label}
                     </CardTitle>
-                    <CardDescription className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">
-                        {formatNumber(kw.app_count)} apps
-                      </Badge>
-                      <span>trend {formatScore(kw.max_trending)}</span>
+                    <CardDescription className="grid grid-cols-3 gap-2 pt-2 text-xs">
+                      <span>
+                        <span className="block text-muted-foreground">
+                          Apps
+                        </span>
+                        <span className="font-medium text-foreground tabular-nums">
+                          {formatNumber(kw.app_count)}
+                        </span>
+                      </span>
+                      <span>
+                        <span className="block text-muted-foreground">
+                          Trend
+                        </span>
+                        <span className="font-medium text-foreground tabular-nums">
+                          {formatScore(kw.max_trending)}
+                        </span>
+                      </span>
+                      <span>
+                        <span className="block text-muted-foreground">
+                          30d reviews
+                        </span>
+                        <span className="font-medium text-foreground tabular-nums">
+                          {formatNumber(kw.total_recent_reviews)}
+                        </span>
+                      </span>
                     </CardDescription>
                   </CardHeader>
                 </Card>

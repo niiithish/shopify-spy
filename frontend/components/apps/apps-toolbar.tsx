@@ -3,7 +3,10 @@
 import { useState } from "react"
 import {
   IconAdjustmentsHorizontal,
+  IconChartBar,
   IconSearch,
+  IconSparkles,
+  IconTargetArrow,
   IconX,
 } from "@tabler/icons-react"
 import {
@@ -152,6 +155,29 @@ function FilterField({
   )
 }
 
+function QuickFilterButton({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-8 gap-1.5"
+      onClick={onClick}
+    >
+      {icon}
+      {label}
+    </Button>
+  )
+}
+
 export function AppsToolbar({
   value,
   onChange,
@@ -214,10 +240,7 @@ export function AppsToolbar({
             value={value.sort}
             onValueChange={(sort) =>
               onChange({
-                sort:
-                  (sort as SortField) ||
-                  defaultSort ||
-                  "trending_score",
+                sort: (sort as SortField) || defaultSort || "trending_score",
               })
             }
           >
@@ -251,7 +274,9 @@ export function AppsToolbar({
             </SelectContent>
           </Select>
           <CollapsibleTrigger
-            render={<Button type="button" variant="outline" className="gap-1.5" />}
+            render={
+              <Button type="button" variant="outline" className="gap-1.5" />
+            }
           >
             <IconAdjustmentsHorizontal className="size-4" />
             Filters
@@ -262,6 +287,47 @@ export function AppsToolbar({
             ) : null}
           </CollapsibleTrigger>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">
+          Quick filters
+        </span>
+        <QuickFilterButton
+          icon={<IconSparkles className="size-4" />}
+          label="Recent traction"
+          onClick={() =>
+            onChange({
+              minRecentReviews: "1",
+              sort: "recent_reviews_30_days",
+              order: "desc",
+            })
+          }
+        />
+        <QuickFilterButton
+          icon={<IconChartBar className="size-4" />}
+          label="Proven demand"
+          onClick={() =>
+            onChange({
+              minReviews: "100",
+              sort: "review_count",
+              order: "desc",
+            })
+          }
+        />
+        <QuickFilterButton
+          icon={<IconTargetArrow className="size-4" />}
+          label="Improve targets"
+          onClick={() =>
+            onChange({
+              minReviews: "5",
+              minRecentReviews: "2",
+              maxRating: "4.1",
+              sort: "recent_reviews_30_days",
+              order: "desc",
+            })
+          }
+        />
       </div>
 
       <CollapsibleContent>

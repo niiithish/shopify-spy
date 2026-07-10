@@ -35,6 +35,7 @@ export type DashboardStats = {
   paid_apps: number
   high_trending: number
   new_opportunities: number
+  improve_targets: number
   favorites_count: number
 }
 
@@ -78,7 +79,7 @@ export type AppsQueryParams = {
   maxRecentReviews?: number
   minTrending?: number
   maxTrending?: number
-  mode?: "all" | "trending" | "opportunities" | "new"
+  mode?: "all" | "trending" | "opportunities" | "improve_targets" | "new"
   favoritesOnly?: boolean
   clientId?: string
 }

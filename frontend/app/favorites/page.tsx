@@ -18,7 +18,10 @@ export default function FavoritesPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Favorites" />
+      <PageHeader
+        title="Favorites"
+        description="Keep promising apps in one place while you compare traction, velocity, and rating gaps."
+      />
 
       {!clientId || favoritesQuery.isLoading ? (
         <AppGrid isLoading />

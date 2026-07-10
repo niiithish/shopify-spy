@@ -74,7 +74,10 @@ function AppsPageContent({ keywordFromUrl }: { keywordFromUrl: string }) {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="All apps" />
+      <PageHeader
+        title="All apps"
+        description="Search every tracked app, then narrow by review base, 30-day velocity, rating, price, or trend score."
+      />
 
       <AppsToolbar value={toolbar} onChange={updateToolbar} />
 

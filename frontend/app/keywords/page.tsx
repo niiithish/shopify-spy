@@ -62,7 +62,10 @@ export default function KeywordsPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Keywords" />
+      <PageHeader
+        title="Keywords"
+        description="Compare niches by app count, trend ceiling, average rating, and recent review activity."
+      />
 
       <InputGroup className="max-w-md">
         <InputGroupAddon>

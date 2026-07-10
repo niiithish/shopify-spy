@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import { IconRocket, IconTargetArrow } from "@tabler/icons-react"
 import { fetchApps } from "@/lib/api"
 import { queryKeys } from "@/lib/query-keys"
 import { useClientId } from "@/hooks/use-client-id"
@@ -15,10 +16,14 @@ import {
   type AppsToolbarState,
 } from "@/components/apps/apps-toolbar"
 import { Pagination } from "@/components/apps/pagination"
+import { Button } from "@/components/ui/button"
+
+type OpportunityMode = "opportunities" | "improve_targets"
 
 export default function OpportunitiesPage() {
   const clientId = useClientId()
   const [page, setPage] = useState(1)
+  const [mode, setMode] = useState<OpportunityMode>("opportunities")
   const [toolbar, setToolbar] = useState<AppsToolbarState>({
     ...defaultAppsToolbarState,
     sort: "recent_reviews_30_days",
@@ -48,11 +53,11 @@ export default function OpportunitiesPage() {
     return {
       page,
       pageSize: 24,
-      mode: "opportunities" as const,
+      mode,
       clientId: clientId || undefined,
       ...filters,
     }
-  }, [page, debouncedSearch, debouncedToolbar, toolbar, clientId])
+  }, [page, debouncedSearch, debouncedToolbar, toolbar, clientId, mode])
 
   const appsQuery = useQuery({
     queryKey: queryKeys.apps(params),
@@ -61,7 +66,37 @@ export default function OpportunitiesPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Opportunities" />
+      <PageHeader
+        title="Opportunities"
+        description="Switch between early products with clean traction and weaker apps that still have recent demand."
+      />
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant={mode === "opportunities" ? "default" : "outline"}
+          size="sm"
+          onClick={() => {
+            setPage(1)
+            setMode("opportunities")
+          }}
+        >
+          <IconRocket data-icon="inline-start" />
+          Early pull
+        </Button>
+        <Button
+          type="button"
+          variant={mode === "improve_targets" ? "default" : "outline"}
+          size="sm"
+          onClick={() => {
+            setPage(1)
+            setMode("improve_targets")
+          }}
+        >
+          <IconTargetArrow data-icon="inline-start" />
+          Improve targets
+        </Button>
+      </div>
 
       <AppsToolbar
         value={toolbar}
@@ -75,8 +110,10 @@ export default function OpportunitiesPage() {
       <AppGrid
         apps={appsQuery.data?.apps}
         isLoading={appsQuery.isLoading || appsQuery.isFetching}
-        emptyTitle="No opportunities"
-        emptyMessage="No opportunity apps match your filters."
+        emptyTitle={
+          mode === "improve_targets" ? "No improve targets" : "No opportunities"
+        }
+        emptyMessage="No apps match this opportunity lane and filter set."
       />
 
       {appsQuery.data ? (

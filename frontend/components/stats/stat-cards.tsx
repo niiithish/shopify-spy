@@ -3,8 +3,8 @@
 import {
   IconApps,
   IconFlame,
-  IconTags,
-  IconHeart,
+  IconRocket,
+  IconTargetArrow,
 } from "@tabler/icons-react"
 import type { DashboardStats } from "@/lib/types"
 import { formatNumber } from "@/lib/format"
@@ -14,27 +14,31 @@ import { Skeleton } from "@/components/ui/skeleton"
 const items = [
   {
     key: "total_apps" as const,
-    label: "Apps",
+    label: "Tracked apps",
+    hint: "Total app records",
     icon: IconApps,
     format: (s: DashboardStats) => formatNumber(s.total_apps),
   },
   {
-    key: "unique_keywords" as const,
-    label: "Keywords",
-    icon: IconTags,
-    format: (s: DashboardStats) => formatNumber(s.unique_keywords),
-  },
-  {
     key: "high_trending" as const,
-    label: "Hot",
+    label: "High traction",
+    hint: "Trend score 70+",
     icon: IconFlame,
     format: (s: DashboardStats) => formatNumber(s.high_trending),
   },
   {
-    key: "favorites_count" as const,
-    label: "Favorites",
-    icon: IconHeart,
-    format: (s: DashboardStats) => formatNumber(s.favorites_count),
+    key: "new_opportunities" as const,
+    label: "Early pull",
+    hint: "Small base, fresh reviews",
+    icon: IconRocket,
+    format: (s: DashboardStats) => formatNumber(s.new_opportunities),
+  },
+  {
+    key: "improve_targets" as const,
+    label: "Improve targets",
+    hint: "Low rating, active demand",
+    icon: IconTargetArrow,
+    format: (s: DashboardStats) => formatNumber(s.improve_targets),
   },
 ]
 
@@ -66,14 +70,17 @@ export function StatCards({
         const Icon = item.icon
         return (
           <Card key={item.key} className="gap-0 py-0">
-            <div className="flex flex-col gap-2 p-5">
+            <div className="flex min-h-28 flex-col gap-2 p-5">
               <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span className="truncate">{item.label}</span>
                 <Icon className="size-3.5 shrink-0 opacity-50" />
               </div>
-              <div className="text-2xl font-semibold tracking-tight tabular-nums">
+              <div className="text-2xl font-semibold tabular-nums">
                 {item.format(stats)}
               </div>
+              <p className="mt-auto text-xs text-muted-foreground">
+                {item.hint}
+              </p>
             </div>
           </Card>
         )

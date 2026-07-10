@@ -22,6 +22,11 @@ export async function GET(request: NextRequest) {
             WHERE CAST(review_count AS INTEGER) BETWEEN 1 AND 50
               AND CAST(rating AS REAL) >= 4.0
               AND recent_reviews_30_days >= 1) as new_opportunities,
+          (SELECT COUNT(*) FROM search_results
+            WHERE CAST(review_count AS INTEGER) >= 5
+              AND CAST(rating AS REAL) BETWEEN 1.0 AND 4.1
+              AND recent_reviews_30_days >= 2
+              AND (CAST(recent_reviews_30_days AS REAL) / NULLIF(CAST(review_count AS REAL), 0)) >= 0.05) as improve_targets,
           (SELECT COUNT(*) FROM favorites WHERE client_id = ? OR client_id = '') as favorites_count
       `,
       args: [clientId],
@@ -38,6 +43,7 @@ export async function GET(request: NextRequest) {
       paid_apps: Number(row?.paid_apps ?? 0),
       high_trending: Number(row?.high_trending ?? 0),
       new_opportunities: Number(row?.new_opportunities ?? 0),
+      improve_targets: Number(row?.improve_targets ?? 0),
       favorites_count: Number(row?.favorites_count ?? 0),
     }
 

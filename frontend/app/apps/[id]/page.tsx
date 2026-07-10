@@ -10,6 +10,7 @@ import {
   IconTrendingUp,
   IconCalendar,
   IconTag,
+  IconTargetArrow,
 } from "@tabler/icons-react"
 import { fetchApp, fetchApps } from "@/lib/api"
 import { queryKeys } from "@/lib/query-keys"
@@ -17,10 +18,13 @@ import { useClientId } from "@/hooks/use-client-id"
 import {
   formatKeyword,
   formatNumber,
+  formatPercent,
   formatRating,
   formatScore,
   formatTrendingScore,
+  opportunitySignal,
   parseAppHandle,
+  reviewVelocityPercent,
   trendingTone,
 } from "@/lib/format"
 import { FavoriteButton } from "@/components/apps/favorite-button"
@@ -137,6 +141,16 @@ export default function AppDetailPage({
   const app = appQuery.data
   const handle = parseAppHandle(app.url)
   const keyword = formatKeyword(app.keyword)
+  const velocity = reviewVelocityPercent(
+    app.recent_reviews_30_days,
+    app.review_count
+  )
+  const signal = opportunitySignal({
+    rating: app.rating,
+    reviewCount: app.review_count,
+    recentReviews: app.recent_reviews_30_days,
+    trendingScore: app.trending_score,
+  })
   const related =
     relatedQuery.data?.apps.filter((a) => a.id !== app.id).slice(0, 4) ?? []
 
@@ -161,14 +175,20 @@ export default function AppDetailPage({
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">
-            <h1 className="font-heading text-xl font-semibold tracking-tight md:text-2xl">
+            <h1 className="font-heading text-xl font-semibold md:text-2xl">
               {app.title}
             </h1>
             {handle ? (
-              <p className="font-mono text-sm text-muted-foreground">{handle}</p>
+              <p className="font-mono text-sm text-muted-foreground">
+                {handle}
+              </p>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <Badge>{app.price || "Unknown"}</Badge>
+              <Badge variant="outline">
+                <IconTargetArrow data-icon="inline-start" />
+                {signal.label}
+              </Badge>
               <Badge variant="outline">
                 <IconTag data-icon="inline-start" />
                 {keyword.kind === "source" ? "Source" : "Keyword"} ·{" "}
@@ -198,7 +218,7 @@ export default function AppDetailPage({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard
           label="Trending score"
           value={formatTrendingScore(app.trending_score)}
@@ -217,6 +237,12 @@ export default function AppDetailPage({
           value={formatNumber(app.recent_reviews_30_days)}
           icon={<IconMessageCircle className="size-4" />}
           hint="Velocity signal for demand"
+        />
+        <MetricCard
+          label="30d ratio"
+          value={formatPercent(velocity)}
+          icon={<IconTargetArrow className="size-4" />}
+          hint="Recent reviews vs total base"
         />
         <MetricCard
           label="Relevance"
@@ -243,11 +269,13 @@ export default function AppDetailPage({
               >
                 {keyword.label}
               </Link>
-              {keyword.kind === "source"
-                ? " (catalog source)"
-                : " keyword"}
-              . Compare competitors in the same niche below — look for gaps in
-              UX, pricing, integrations, or support.
+              {keyword.kind === "source" ? " (catalog source)" : " keyword"}.
+              Compare competitors in the same niche below — look for gaps in UX,
+              pricing, integrations, or support.
+            </p>
+            <p className="rounded-md border border-border/70 bg-muted/35 p-3 text-foreground">
+              Signal: <span className="font-medium">{signal.label}</span>.{" "}
+              <span className="text-muted-foreground">{signal.detail}</span>
             </p>
             <Separator />
             <ul className="space-y-2">
@@ -262,6 +290,12 @@ export default function AppDetailPage({
                 <span className="font-medium text-foreground tabular-nums">
                   {formatNumber(app.review_count)} total ·{" "}
                   {formatNumber(app.recent_reviews_30_days)} / 30d
+                </span>
+              </li>
+              <li className="flex justify-between gap-4">
+                <span>Recent review ratio</span>
+                <span className="font-medium text-foreground tabular-nums">
+                  {formatPercent(velocity)}
                 </span>
               </li>
               <li className="flex justify-between gap-4">
@@ -305,7 +339,7 @@ export default function AppDetailPage({
 
       <section className="space-y-6">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-heading text-base font-semibold tracking-tight">
+          <h2 className="font-heading text-base font-semibold">
             Same keyword competitors
           </h2>
           <Link
@@ -347,10 +381,7 @@ function MetricCard({
           {icon}
         </CardDescription>
         <CardTitle
-          className={cn(
-            "text-2xl font-semibold tabular-nums",
-            valueClassName
-          )}
+          className={cn("text-2xl font-semibold tabular-nums", valueClassName)}
         >
           {value}
         </CardTitle>

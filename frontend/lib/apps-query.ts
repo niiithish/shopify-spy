@@ -128,6 +128,14 @@ export async function queryApps(db: Client, params: AppsQueryParams) {
     where.push(`CAST(review_count AS INTEGER) BETWEEN 1 AND 50`)
     where.push(`CAST(rating AS REAL) >= 4.0`)
     where.push(`recent_reviews_30_days >= 1`)
+  } else if (params.mode === "improve_targets") {
+    // Demand is still showing up, but rating suggests room to build a better version.
+    where.push(`CAST(review_count AS INTEGER) >= 5`)
+    where.push(`CAST(rating AS REAL) BETWEEN 1.0 AND 4.1`)
+    where.push(`recent_reviews_30_days >= 2`)
+    where.push(
+      `(CAST(recent_reviews_30_days AS REAL) / NULLIF(CAST(review_count AS REAL), 0)) >= 0.05`
+    )
   } else if (params.mode === "new") {
     where.push(`created_at >= datetime('now', '-14 days')`)
   }
