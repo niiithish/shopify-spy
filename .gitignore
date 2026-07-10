@@ -1,0 +1,27 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Env / secrets (keep examples)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Logs
+*.log
+
+# Dependencies / build (also covered by package gitignores)
+node_modules/
+.next/
+out/
+dist/
+build/
+__pycache__/
+*.pyc
+*.tsbuildinfo
