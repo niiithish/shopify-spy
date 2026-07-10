@@ -6,18 +6,58 @@ Usage:  python3 db.py "SELECT * FROM search_results LIMIT 5"
         python3 db.py --search <keyword> # search results for keyword
 """
 import urllib.request, json, sys, os
+from pathlib import Path
 from urllib.parse import urlencode
 
-DB_URL = "https://shopify-spy-v2-nithish.aws-ap-south-1.turso.io/v2/pipeline"
+# Monorepo root (backend/..) — shared .env with frontend
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ENV_PATH = REPO_ROOT / ".env"
 
-def get_token():
-    env_path = os.path.expanduser("~/Work/shopify-spy/.env")
-    with open(env_path) as f:
+
+def _load_env(path: Path) -> dict[str, str]:
+    env: dict[str, str] = {}
+    if not path.is_file():
+        return env
+    with open(path) as f:
         for line in f:
-            if "TURSO_AUTH_TOKEN" in line:
-                return line.split("=", 1)[1].strip()
-    raise RuntimeError("TURSO_AUTH_TOKEN not found in .env")
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            env[key.strip()] = val.strip().strip('"').strip("'")
+    return env
 
+
+def _pipeline_url(database_url: str) -> str:
+    """libsql://host -> https://host/v2/pipeline"""
+    host = database_url
+    for prefix in ("libsql://", "https://", "http://"):
+        if host.startswith(prefix):
+            host = host[len(prefix) :]
+            break
+    host = host.rstrip("/")
+    return f"https://{host}/v2/pipeline"
+
+
+_env = _load_env(ENV_PATH)
+# Prefer process env, fall back to monorepo-root .env
+if "TURSO_DATABASE_URL" in _env and "TURSO_DATABASE_URL" not in os.environ:
+    os.environ["TURSO_DATABASE_URL"] = _env["TURSO_DATABASE_URL"]
+if "TURSO_AUTH_TOKEN" in _env and "TURSO_AUTH_TOKEN" not in os.environ:
+    os.environ["TURSO_AUTH_TOKEN"] = _env["TURSO_AUTH_TOKEN"]
+
+
+def get_token() -> str:
+    token = os.environ.get("TURSO_AUTH_TOKEN") or _env.get("TURSO_AUTH_TOKEN")
+    if not token:
+        raise RuntimeError(f"TURSO_AUTH_TOKEN not found in {ENV_PATH}")
+    return token
+
+
+db_url = os.environ.get("TURSO_DATABASE_URL") or _env.get("TURSO_DATABASE_URL")
+if not db_url:
+    raise RuntimeError(f"TURSO_DATABASE_URL not found in {ENV_PATH}")
+DB_URL = _pipeline_url(db_url)
 token = get_token()
 
 def run(sql, pretty=True):

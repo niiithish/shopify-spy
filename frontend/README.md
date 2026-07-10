@@ -14,9 +14,14 @@ Frontend for browsing scraped Shopify App Store data. Find **trending** and **ea
 
 ## Setup
 
+Env is shared at the **monorepo root** (not under `frontend/`):
+
 ```bash
-cp .env.example .env.local
+# from repo root (shopify-spy/)
+cp .env.example .env
 # fill in TURSO_DATABASE_URL and TURSO_AUTH_TOKEN
+
+cd frontend
 bun install
 bun run dev
 ```

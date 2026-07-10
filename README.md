@@ -9,11 +9,27 @@ Monorepo for scraping and browsing Shopify App Store data. Find **trending** and
 
 ## Quick start
 
+### Shared env (once)
+
+Both frontend and backend read the **same** file at the monorepo root:
+
+```bash
+cp .env.example .env
+# set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN
+```
+
+| App | How it loads env |
+|-----|------------------|
+| `frontend/` | `next.config.ts` loads root `.env` via `@next/env` |
+| `backend/` (Go) | `godotenv` loads `../.env` (repo root) |
+| `backend/` (Python) | reads repo-root `.env` next to this README |
+
+Do **not** put separate `.env` files under `frontend/` or `backend/`.
+
 ### Backend (scraper)
 
 ```bash
 cd backend
-cp .env.example .env   # set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN
 # see backend/README.md for Go/Python setup and scrape commands
 ```
 
@@ -21,7 +37,6 @@ cp .env.example .env   # set TURSO_DATABASE_URL + TURSO_AUTH_TOKEN
 
 ```bash
 cd frontend
-cp .env.example .env.local   # same Turso credentials
 bun install
 bun run dev
 ```

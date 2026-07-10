@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -31,8 +32,41 @@ import (
 )
 
 func init() {
-	// Load .env file if it exists
-	_ = godotenv.Load()
+	// Shared monorepo env: repo-root .env (same file as frontend)
+	loadDotEnv()
+}
+
+// loadDotEnv loads the monorepo-root .env (preferred), then falls back to CWD.
+func loadDotEnv() {
+	var candidates []string
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(wd, ".env"),
+			filepath.Join(wd, "..", ".env"), // backend/ -> repo root
+		)
+	}
+	if exe, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exe)
+		candidates = append(candidates,
+			filepath.Join(dir, ".env"),
+			filepath.Join(dir, "..", ".env"),
+		)
+	}
+	seen := make(map[string]bool)
+	for _, c := range candidates {
+		abs, err := filepath.Abs(c)
+		if err != nil {
+			continue
+		}
+		if seen[abs] {
+			continue
+		}
+		seen[abs] = true
+		if st, err := os.Stat(abs); err == nil && !st.IsDir() {
+			_ = godotenv.Load(abs)
+			return
+		}
+	}
 }
 
 // 100 NEW keywords in 10 batches - batch 2 research

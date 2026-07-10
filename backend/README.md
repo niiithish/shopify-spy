@@ -24,13 +24,16 @@ A Go-based scraper for the Shopify App Store that stores results in Turso (SQLit
    go mod tidy
    ```
 
-2. **Configure Turso database:**
+2. **Configure Turso database** (shared monorepo root `.env`, same as frontend):
    ```bash
+   # from repo root (shopify-spy/), not backend/
    cp .env.example .env
-   # Edit .env with your Turso credentials
+   # Edit .env with TURSO_DATABASE_URL + TURSO_AUTH_TOKEN
    ```
 
-3. **Set environment variables:**
+   Go and Python load that root file automatically. You can still export the vars
+   manually if you prefer:
+
    ```bash
    export TURSO_DATABASE_URL="libsql://your-database.turso.io"
    export TURSO_AUTH_TOKEN="your-token"
