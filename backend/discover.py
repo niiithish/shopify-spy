@@ -399,6 +399,91 @@ class NotFoundError(Exception):
     pass
 
 
+def looks_like_bot_block(text: str) -> bool:
+    """True only for real anti-bot / CF interstitial pages.
+
+    Avoid false positives on legitimate App Store listings:
+    - marketing that mentions CAPTCHA / "access denied" / blocking
+    - feature tags like "Bot detection" (geo/IP/country blocker apps)
+    """
+    low = (text or "").lower()
+    if not low.strip():
+        return False
+
+    # Fully rendered listing chrome ⇒ never treat as a bot wall.
+    # Real CF interstitials do not include Install / Reviews / Developer UI.
+    listing_signals = (
+        "shopify app store",
+        "install",
+        "reviews",
+        "developer",
+        "pricing",
+        "write a review",
+        "categories",
+        "log in",
+        "built for shopify",
+    )
+    listing_hits = sum(1 for s in listing_signals if s in low)
+    if listing_hits >= 3:
+        return False
+
+    # Strong Cloudflare / bot-wall signals (only when page is NOT a listing)
+    strong = (
+        "cf-browser-verification",
+        "cf-challenge",
+        "cdn-cgi/challenge",
+        "just a moment",
+        "checking your browser before",
+        "attention required",
+        "enable javascript and cookies to continue",
+        "why have i been blocked",
+        "sorry, you have been blocked",
+        "verify you are human",
+        "verify that you are human",
+        "security check to access",
+        "performing security verification",
+    )
+    phrase = (
+        "complete the captcha",
+        "solve the captcha",
+        "captcha challenge",
+        "captcha required",
+        "please complete the security check",
+    )
+
+    for s in strong:
+        if s in low:
+            return True
+
+    # Ray ID only with Cloudflare block co-signals (still non-listing pages)
+    if "ray id" in low and any(
+        x in low
+        for x in (
+            "cloudflare",
+            "attention required",
+            "access denied",
+            "blocked",
+            "challenge",
+        )
+    ):
+        return True
+
+    for s in phrase:
+        if s in low:
+            return True
+
+    # Short empty-ish challenge shells with no app content
+    if len(low) < 800 and (
+        "access denied" in low
+        or "cf-" in low
+        or "challenge" in low
+        or "cloudflare" in low
+    ):
+        return True
+
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Sitemap
 # ---------------------------------------------------------------------------
@@ -516,7 +601,9 @@ def browser_get_page_text(url: str) -> str:
         low = out.lower()
         if "429" in low or "rate limit" in low or "too many requests" in low:
             raise RateLimitError("rate limited by shopify/app store")
-        if "captcha" in low or "access denied" in low:
+        # Real bot walls only — bare "captcha" false-positives on app marketing
+        # (e.g. SpamNest: "no CAPTCHAs, no friction").
+        if looks_like_bot_block(out):
             raise TransientError("blocked/captcha")
         # Strip agent-browser chrome lines (✓ ... / session noise)
         cleaned = []
@@ -544,6 +631,23 @@ def browser_get_page_text(url: str) -> str:
             pass
 
 
+def _parse_int_count(raw: str) -> Optional[str]:
+    """Normalize a review-count token like '1,392' or '1392' → '1392' (digits only)."""
+    if raw is None:
+        return None
+    digits = re.sub(r"[^\d]", "", str(raw))
+    if not digits:
+        return None
+    # Guard against accidental year-like / garbage huge numbers
+    try:
+        n = int(digits)
+    except ValueError:
+        return None
+    if n < 0 or n > 5_000_000:
+        return None
+    return str(n)
+
+
 def parse_listing_text(text: str) -> dict:
     """Parse agent-browser main text from an app listing page."""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
@@ -564,37 +668,84 @@ def parse_listing_text(text: str) -> dict:
             continue
         if re.fullmatch(r"\d+(?:\.\d+)?", ln):
             continue
-        if re.fullmatch(r"\(\d+\)", ln):
+        # Parenthesized counts may include thousands separators: (1,392)
+        if re.fullmatch(r"\([\d,]+\)", ln):
             continue
-        if re.fullmatch(r"\+\s*\d+\s*more", low):
+        if re.fullmatch(r"\+\s*[\d,]+\s*more", low):
             continue
         if len(ln) >= 3:
             title = ln
             break
 
-    # Rating: line "Rating" followed by number, or "4.7 out of 5"
+    # Only scan the hero / early listing — related apps lower on the page
+    # often have their own "(1) 1 total reviews" which used to overwrite the
+    # real count when our regex failed on comma-formatted numbers like (1,392).
+    scan_until = min(len(lines), 120)
+    more_apps_at = None
     for i, ln in enumerate(lines):
-        if ln.lower() == "rating" and i + 1 < len(lines):
+        if re.search(r"more apps like this|you might also like", ln, re.I):
+            more_apps_at = i
+            break
+    if more_apps_at is not None:
+        scan_until = min(scan_until, more_apps_at)
+
+    for i, ln in enumerate(lines[:scan_until]):
+        # Rating: "Rating" then next line is the score — take FIRST only
+        if rating is None and ln.lower() == "rating" and i + 1 < len(lines):
             m = re.match(r"^(\d(?:\.\d)?)$", lines[i + 1])
             if m:
                 rating = m.group(1)
-        m = re.search(r"(\d(?:\.\d)?)\s*out of 5", ln, re.I)
-        if m:
-            rating = m.group(1)
-        m = re.fullmatch(r"\((\d+)\)", ln)
-        if m and review_count is None:
-            # Only first rating-adjacent count (listing hero), never related-apps later
-            if i > 0 and (
+        if rating is None:
+            m = re.search(r"(\d(?:\.\d)?)\s*out of 5", ln, re.I)
+            if m:
+                rating = m.group(1)
+
+        if review_count is None:
+            # Hero count on its own line: (1,392) or (42) after rating/score
+            m = re.fullmatch(r"\(([\d,]+)\)", ln)
+            if m and i > 0 and (
                 lines[i - 1].lower() == "rating"
                 or re.fullmatch(r"\d(?:\.\d)?", lines[i - 1])
             ):
-                review_count = m.group(1)
-        m = re.search(r"(\d+)\s*total reviews", ln, re.I)
-        if m and review_count is None:
-            review_count = m.group(1)
-        m = re.search(r"Reviews\s*\((\d+)\)", ln, re.I)
-        if m and review_count is None:
-            review_count = m.group(1)
+                review_count = _parse_int_count(m.group(1))
+                continue
+
+            # Same-line: "4.8 (1,392)" or "4.8 [(1,392)]"
+            m = re.search(r"(\d(?:\.\d)?)\s*\[?\(([\d,]+)\)\]?", ln)
+            if m:
+                if rating is None:
+                    rating = m.group(1)
+                review_count = _parse_int_count(m.group(2))
+                continue
+
+            # Section header: "Reviews (1,392)" / "Reviews(1392)"
+            m = re.search(r"Reviews\s*\(([\d,]+)\)", ln, re.I)
+            if m:
+                review_count = _parse_int_count(m.group(1))
+                continue
+
+            # "1,392 total reviews" / "1392 Reviews"
+            m = re.search(r"([\d,]+)\s*total reviews", ln, re.I)
+            if m:
+                review_count = _parse_int_count(m.group(1))
+                continue
+            m = re.search(r"([\d,]+)\s+Reviews\b", ln, re.I)
+            if m and not ln.lower().startswith("write"):
+                review_count = _parse_int_count(m.group(1))
+                continue
+
+    # JSON-LD fallback (often present in full page text dumps)
+    if review_count is None:
+        m = re.search(
+            r'"ratingCount"\s*:\s*(\d+)|"reviewCount"\s*:\s*(\d+)',
+            text,
+        )
+        if m:
+            review_count = _parse_int_count(m.group(1) or m.group(2))
+    if rating is None:
+        m = re.search(r'"ratingValue"\s*:\s*(\d(?:\.\d+)?)', text)
+        if m:
+            rating = m.group(1)
 
     blob = "\n".join(lines[:80]).lower()
     if "free plan available" in blob:
