@@ -76,7 +76,7 @@ export default function TrendingPage() {
 
       <AppGrid
         apps={appsQuery.data?.apps}
-        isLoading={appsQuery.isLoading || appsQuery.isFetching}
+        isLoading={appsQuery.isLoading}
         emptyTitle="No trending apps"
         emptyMessage="No trending apps match your filters."
       />

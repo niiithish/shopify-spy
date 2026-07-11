@@ -109,7 +109,7 @@ export default function OpportunitiesPage() {
 
       <AppGrid
         apps={appsQuery.data?.apps}
-        isLoading={appsQuery.isLoading || appsQuery.isFetching}
+        isLoading={appsQuery.isLoading}
         emptyTitle={
           mode === "improve_targets" ? "No improve targets" : "No opportunities"
         }

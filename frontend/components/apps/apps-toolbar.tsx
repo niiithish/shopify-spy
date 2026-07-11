@@ -22,15 +22,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
+import { Slider } from "@/components/ui/slider"
 import type { AppsQueryParams, SortField, SortOrder } from "@/lib/types"
+import { formatNumber } from "@/lib/format"
 
 /** Empty string = no filter; numeric strings for controlled inputs */
 export type AppsToolbarState = {
@@ -115,42 +115,165 @@ export function countActiveAdvancedFilters(value: AppsToolbarState): number {
   ].filter((v) => v.trim() !== "").length
 }
 
-function FilterField({
-  id,
+/** Base UI Select shows raw values unless `items` maps value → label. */
+const PRICE_OPTIONS = [
+  { value: "all", label: "All prices" },
+  { value: "Free", label: "Free" },
+  { value: "Free trial", label: "Free trial" },
+  { value: "Paid", label: "Paid" },
+] as const
+
+const SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: "trending_score", label: "Trending score" },
+  { value: "recent_reviews_30_days", label: "Reviews (30d)" },
+  { value: "rating", label: "Rating" },
+  { value: "review_count", label: "Total reviews" },
+  { value: "relevance_score", label: "Relevance" },
+  { value: "created_at", label: "First seen" },
+  { value: "title", label: "Name" },
+]
+
+const ORDER_OPTIONS: { value: SortOrder; label: string }[] = [
+  { value: "desc", label: "Desc" },
+  { value: "asc", label: "Asc" },
+]
+
+/** Slider bounds. Thumbs at either end = no filter on that side. */
+const FILTER_RANGES = {
+  reviews: { min: 0, max: 5000, step: 10 },
+  recentReviews: { min: 0, max: 100, step: 1 },
+  rating: { min: 0, max: 5, step: 0.1 },
+  trending: { min: 0, max: 100, step: 1 },
+} as const
+
+function parseBound(value: string, fallback: number): number {
+  if (value.trim() === "") return fallback
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function stepDecimals(step: number): number {
+  return String(step).includes(".")
+    ? (String(step).split(".")[1]?.length ?? 0)
+    : 0
+}
+
+function formatStepValue(value: number, step: number): string {
+  const decimals = stepDecimals(step)
+  return decimals > 0
+    ? Number(value.toFixed(decimals)).toFixed(decimals)
+    : String(Math.round(value))
+}
+
+function atBound(value: number, edge: number): boolean {
+  return Math.abs(value - edge) < 1e-9
+}
+
+function boundToFilterString(
+  value: number,
+  edge: number,
+  step: number,
+  isMinEdge: boolean
+): string {
+  // Slider values are already stepped; ends mean “no bound”
+  if (isMinEdge ? value <= edge : value >= edge) return ""
+  return formatStepValue(value, step)
+}
+
+function formatMinLabel(
+  value: number,
+  boundMin: number,
+  style: "count" | "rating" | "score"
+): string {
+  if (atBound(value, boundMin) || value <= boundMin) return "Any"
+  if (style === "rating") return value.toFixed(1)
+  if (style === "score") return String(Math.round(value))
+  return formatNumber(Math.round(value))
+}
+
+function formatMaxLabel(
+  value: number,
+  boundMax: number,
+  style: "count" | "rating" | "score"
+): string {
+  if (atBound(value, boundMax) || value >= boundMax) {
+    return style === "count" ? `${formatNumber(boundMax)}+` : "Any"
+  }
+  if (style === "rating") return value.toFixed(1)
+  if (style === "score") return String(Math.round(value))
+  return formatNumber(Math.round(value))
+}
+
+function RangeFilter({
   label,
-  value,
-  onChange,
-  placeholder,
-  min,
-  max,
+  minValue,
+  maxValue,
+  boundMin,
+  boundMax,
   step,
+  style,
+  onChange,
 }: {
-  id: string
   label: string
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
-  min?: number
-  max?: number
-  step?: number | string
+  minValue: string
+  maxValue: string
+  boundMin: number
+  boundMax: number
+  step: number
+  style: "count" | "rating" | "score"
+  onChange: (min: string, max: string) => void
 }) {
+  const lo = Math.min(
+    boundMax,
+    Math.max(boundMin, parseBound(minValue, boundMin))
+  )
+  const hi = Math.min(
+    boundMax,
+    Math.max(boundMin, parseBound(maxValue, boundMax))
+  )
+  // Keep thumbs ordered if state is briefly inverted
+  const range: [number, number] = lo <= hi ? [lo, hi] : [hi, lo]
+
+  const loLabel = formatMinLabel(range[0], boundMin, style)
+  const hiLabel = formatMaxLabel(range[1], boundMax, style)
+
   return (
-    <div className="space-y-1.5">
-      <Label htmlFor={id} className="text-xs text-muted-foreground">
-        {label}
-      </Label>
-      <Input
-        id={id}
-        type="number"
-        inputMode="decimal"
-        min={min}
-        max={max}
+    <div className="space-y-3 rounded-md border border-border/60 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <p className="text-xs tabular-nums text-foreground">
+          {loLabel}
+          <span className="mx-1 text-muted-foreground">–</span>
+          {hiLabel}
+        </p>
+      </div>
+      <Slider
+        min={boundMin}
+        max={boundMax}
         step={step}
-        placeholder={placeholder ?? "Any"}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-8"
+        minStepsBetweenValues={1}
+        value={range}
+        onValueChange={(next) => {
+          const [nextLo, nextHi] = next as number[]
+          onChange(
+            boundToFilterString(nextLo, boundMin, step, true),
+            boundToFilterString(nextHi, boundMax, step, false)
+          )
+        }}
+        className="w-full"
       />
+      <div className="flex justify-between text-[0.65rem] tabular-nums text-muted-foreground">
+        <span>
+          {style === "rating" ? boundMin.toFixed(1) : formatNumber(boundMin)}
+        </span>
+        <span>
+          {style === "rating"
+            ? boundMax.toFixed(1)
+            : style === "count"
+              ? `${formatNumber(boundMax)}+`
+              : formatNumber(boundMax)}
+        </span>
+      </div>
     </div>
   )
 }
@@ -224,15 +347,17 @@ export function AppsToolbar({
             <Select
               value={value.price}
               onValueChange={(price) => onChange({ price: price ?? "all" })}
+              items={PRICE_OPTIONS}
             >
               <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="Price" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All prices</SelectItem>
-                <SelectItem value="Free">Free</SelectItem>
-                <SelectItem value="Free trial">Free trial</SelectItem>
-                <SelectItem value="Paid">Paid</SelectItem>
+                {PRICE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           )}
@@ -243,20 +368,17 @@ export function AppsToolbar({
                 sort: (sort as SortField) || defaultSort || "trending_score",
               })
             }
+            items={SORT_OPTIONS}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="trending_score">Trending score</SelectItem>
-              <SelectItem value="recent_reviews_30_days">
-                Reviews (30d)
-              </SelectItem>
-              <SelectItem value="rating">Rating</SelectItem>
-              <SelectItem value="review_count">Total reviews</SelectItem>
-              <SelectItem value="relevance_score">Relevance</SelectItem>
-              <SelectItem value="created_at">First seen</SelectItem>
-              <SelectItem value="title">Name</SelectItem>
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select
@@ -264,13 +386,17 @@ export function AppsToolbar({
             onValueChange={(order) =>
               onChange({ order: (order as SortOrder) || "desc" })
             }
+            items={ORDER_OPTIONS}
           >
             <SelectTrigger className="w-[110px]">
               <SelectValue placeholder="Order" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="desc">Desc</SelectItem>
-              <SelectItem value="asc">Asc</SelectItem>
+              {ORDER_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <CollapsibleTrigger
@@ -348,109 +474,54 @@ export function AppsToolbar({
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="space-y-3 rounded-md border border-border/60 p-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Total reviews
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <FilterField
-                  id="min-reviews"
-                  label="Min"
-                  value={value.minReviews}
-                  onChange={(minReviews) => onChange({ minReviews })}
-                  min={0}
-                  step={1}
-                />
-                <FilterField
-                  id="max-reviews"
-                  label="Max"
-                  value={value.maxReviews}
-                  onChange={(maxReviews) => onChange({ maxReviews })}
-                  min={0}
-                  step={1}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-md border border-border/60 p-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Reviews (30 days)
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <FilterField
-                  id="min-recent"
-                  label="Min"
-                  value={value.minRecentReviews}
-                  onChange={(minRecentReviews) =>
-                    onChange({ minRecentReviews })
-                  }
-                  min={0}
-                  step={1}
-                />
-                <FilterField
-                  id="max-recent"
-                  label="Max"
-                  value={value.maxRecentReviews}
-                  onChange={(maxRecentReviews) =>
-                    onChange({ maxRecentReviews })
-                  }
-                  min={0}
-                  step={1}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-md border border-border/60 p-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Rating
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <FilterField
-                  id="min-rating"
-                  label="Min"
-                  value={value.minRating}
-                  onChange={(minRating) => onChange({ minRating })}
-                  min={0}
-                  max={5}
-                  step={0.1}
-                />
-                <FilterField
-                  id="max-rating"
-                  label="Max"
-                  value={value.maxRating}
-                  onChange={(maxRating) => onChange({ maxRating })}
-                  min={0}
-                  max={5}
-                  step={0.1}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3 rounded-md border border-border/60 p-4">
-              <p className="text-xs font-medium text-muted-foreground">
-                Trend score (0–100)
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <FilterField
-                  id="min-trend"
-                  label="Min"
-                  value={value.minTrending}
-                  onChange={(minTrending) => onChange({ minTrending })}
-                  min={0}
-                  max={100}
-                  step={1}
-                />
-                <FilterField
-                  id="max-trend"
-                  label="Max"
-                  value={value.maxTrending}
-                  onChange={(maxTrending) => onChange({ maxTrending })}
-                  min={0}
-                  max={100}
-                  step={1}
-                />
-              </div>
-            </div>
+            <RangeFilter
+              label="Total reviews"
+              minValue={value.minReviews}
+              maxValue={value.maxReviews}
+              boundMin={FILTER_RANGES.reviews.min}
+              boundMax={FILTER_RANGES.reviews.max}
+              step={FILTER_RANGES.reviews.step}
+              style="count"
+              onChange={(minReviews, maxReviews) =>
+                onChange({ minReviews, maxReviews })
+              }
+            />
+            <RangeFilter
+              label="Reviews (30 days)"
+              minValue={value.minRecentReviews}
+              maxValue={value.maxRecentReviews}
+              boundMin={FILTER_RANGES.recentReviews.min}
+              boundMax={FILTER_RANGES.recentReviews.max}
+              step={FILTER_RANGES.recentReviews.step}
+              style="count"
+              onChange={(minRecentReviews, maxRecentReviews) =>
+                onChange({ minRecentReviews, maxRecentReviews })
+              }
+            />
+            <RangeFilter
+              label="Rating"
+              minValue={value.minRating}
+              maxValue={value.maxRating}
+              boundMin={FILTER_RANGES.rating.min}
+              boundMax={FILTER_RANGES.rating.max}
+              step={FILTER_RANGES.rating.step}
+              style="rating"
+              onChange={(minRating, maxRating) =>
+                onChange({ minRating, maxRating })
+              }
+            />
+            <RangeFilter
+              label="Trend score"
+              minValue={value.minTrending}
+              maxValue={value.maxTrending}
+              boundMin={FILTER_RANGES.trending.min}
+              boundMax={FILTER_RANGES.trending.max}
+              step={FILTER_RANGES.trending.step}
+              style="score"
+              onChange={(minTrending, maxTrending) =>
+                onChange({ minTrending, maxTrending })
+              }
+            />
           </div>
         </div>
       </CollapsibleContent>

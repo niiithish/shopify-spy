@@ -101,7 +101,7 @@ function AppsPageContent({ keywordFromUrl }: { keywordFromUrl: string }) {
 
       <AppGrid
         apps={appsQuery.data?.apps}
-        isLoading={appsQuery.isLoading || appsQuery.isFetching}
+        isLoading={appsQuery.isLoading}
         emptyTitle="No apps found"
         emptyMessage="Try adjusting filters or clearing the keyword."
       />

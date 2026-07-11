@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
-  IconChartBar,
   IconFlame,
   IconHeart,
   IconLayoutDashboard,
@@ -55,9 +54,14 @@ function AppSidebar() {
               render={<Link href="/" />}
               tooltip="Shopify Spy"
             >
-              <div className="flex size-8 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                <IconChartBar className="size-4" />
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.svg"
+                alt="Shopify Spy"
+                width={32}
+                height={32}
+                className="size-8 shrink-0"
+              />
               <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Shopify Spy</span>
                 <span className="truncate text-xs text-muted-foreground">
